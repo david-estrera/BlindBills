@@ -16,7 +16,7 @@ class ImageClusterer:
         # Convert the image from BGR to RGB color space
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         # Resize the image to a same sizes (optional)
-        # image = cv2.resize(image, (300, 800))
+        image = cv2.resize(image, (100, 100))
         # Flatten the image into a feature vector
         pixels = image.reshape(-1, 3)
         # Compute the histogram for each channel
@@ -42,6 +42,14 @@ class ImageClusterer:
                 self.cluster_assignments[label] = [path]
             else:
                 self.cluster_assignments[label].append(path)
+    def predict(self, image):
+        if self.kmeans is None:
+            raise Exception("Model has not been trained yet.")
+        # Extract features from the input image
+        features = self.extract_color_features(image)
+        # Predict the cluster label for the input image
+        cluster_label = self.kmeans.predict([features])[0]
+        return cluster_label, self.cluster_assignments.get(cluster_label, [])
 
 # Tester
 if __name__ == "__main__":
