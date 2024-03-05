@@ -6,6 +6,8 @@ from PIL import Image
 import time
 from cvzone.ColorModule import ColorFinder
 from image_cluster import ImageClusterer
+import pyttsx3
+
 # set up camera
 cap = cv2.VideoCapture(0)
 cap.set(3,640)
@@ -75,6 +77,7 @@ num_clusters = 3  # You can adjust the number of clusters as needed
 clusterer = ImageClusterer(num_clusters)
 # Train the clustering model
 clusterer.train(image_folder)
+previous_count = 0
 
 #using camera loop
 while True:
@@ -90,7 +93,8 @@ while True:
     imgContours, conFound = cvzone.findContours(img, imgEdge, minArea=minArea)
 
     if conFound:
-        moneyAmt = 0
+        #TEST SPEECH VALUES HERE
+        #moneyAmt = 1240 
         for contour in conFound:
             # get number of sides (makes sure its a 4 sided bill)
             peri = cv2.arcLength(contour['cnt'], True)
@@ -123,7 +127,6 @@ while True:
                     #  elif(FifthyPixelCount >=800):
                     #      moneyAmt += 50
 
-
                     # identify using KMEANS
                     cluster = clusterer.predict(imgCrop)
                     #prints predicted cluster
@@ -132,6 +135,17 @@ while True:
 
         # Draw the text amount image
         moneyCount.fill(255)
+
+        speech = pyttsx3.init()
+        voices = speech.getProperty('voices')
+        speech.setProperty('voice', voices[0].id)
+        string_mon = str(moneyAmt)
+
+        if string_mon != '0' and previous_count != moneyAmt:
+            speech.say(string_mon + 'Pesos')
+            speech.runAndWait()
+            previous_count = moneyAmt
+
         cv2.putText(moneyCount, f'Php{moneyAmt}', org, font, font_scale, color, thickness=2, lineType=cv2.LINE_AA)
 
         # show images
