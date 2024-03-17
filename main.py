@@ -9,7 +9,7 @@ from image_cluster import ImageClusterer
 import pyttsx3
 
 # set up camera
-cap = cv2.VideoCapture(0)import cv2
+cap = cv2.VideoCapture(0)
 import cvzone
 import math
 import numpy as np
@@ -86,6 +86,8 @@ num_clusters = 3  # You can adjust the number of clusters as needed
 clusterer = ImageClusterer(num_clusters)
 # Train the clustering model
 clusterer.train(image_folder)
+previous_count = 0
+
 
 #using camera loop
 while True:
@@ -136,15 +138,26 @@ while True:
 
 
                     # identify using KMEANS
-                    cluster = clusterer.predict(imgCrop)
+                    cluster, cashValue = clusterer.predict(imgCrop)
                     #prints predicted cluster
                     print(cluster)
+                    moneyAmt += int(cashValue)
 
 
         # Draw the text amount image
         moneyCount.fill(255)
-        cv2.putText(moneyCount, f'Php{moneyAmt}', org, font, font_scale, color, thickness=2, lineType=cv2.LINE_AA)
+        
+        speech = pyttsx3.init()
+        voices = speech.getProperty('voices')
+        speech.setProperty('voice', voices[0].id)
+        string_mon = str(moneyAmt)
 
+        if string_mon != '0' and previous_count != moneyAmt:
+            speech.say(string_mon + 'Pesos')
+            speech.runAndWait()
+            previous_count = moneyAmt
+
+        cv2.putText(moneyCount, f'Php{moneyAmt}', org, font, font_scale, color, thickness=2, lineType=cv2.LINE_AA)
         # show images
         imgStacked = cvzone.stackImages([img, imgBlur, imgEdge, imgContours, moneyCount], 3, 1) # good for showing the process
         #imgStacked = cvzone.stackImages([img, moneyCount], 2, 1.4) # for showing camera and count only
