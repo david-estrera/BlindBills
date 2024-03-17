@@ -1,160 +1,168 @@
 import cv2
-import cvzone
-import math
+import os
 import numpy as np
-import time
-from cvzone.ColorModule import ColorFinder
-from image_cluster import ImageClusterer
-import pyttsx3
+from scipy.stats import skew, kurtosis
+from sklearn.cluster import KMeans
+from collections import Counter
 
-# set up camera
-cap = cv2.VideoCapture(0)
-cap.set(3,640)
-cap.set(4, 480)
+class ImageClusterer:
+    def __init__(self, num_clusters):
+        self.num_clusters = num_clusters
+        self.kmeans = None
+        self.cluster_assignments = {}  # Dictionary to store image paths per cluster
 
-# Preset Colors of Bills
-# 'hmin', 'smin', 'vmin' are the minimum values for Hue, Saturation, and Value.
-# 'hmax', 'smax', 'vmax' are the maximum values for Hue, Saturation, and Value.
-# hsvVals = {'hmin': 10, 'smin': 55, 'vmin': 215, 'hmax': 42, 'smax': 255, 'vmax': 255}
-myColorFinder = ColorFinder(False)
-# Color of 100 Bill
-cOneHundred = {'hmin': 110, 'smin': 0, 'vmin': 82, 'hmax': 179, 'smax': 131, 'vmax': 198}
-cFifthy = {'hmin': 0, 'smin': 50, 'vmin': 112, 'hmax': 28, 'smax': 255, 'vmax': 255}
-cOneThousand = {'hmin': 59, 'smin': 0, 'vmin': 0, 'hmax': 113, 'smax': 255, 'vmax': 255}
+    #Train using Color Histogram
+    def extract_color_features(self, image):
+        # Convert the image from BGR to RGB color space
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        # Resize the image to a same sizes (optional)
+        image = cv2.resize(image, (100, 100))
+        # Flatten the image into a feature vector
+        pixels = image.reshape(-1, 3)
+        # Compute the histogram for each channel
+        hist = cv2.calcHist([image], [0, 1, 2], None, (8, 8, 8), [0, 256, 0, 256, 0, 256])
+        # Normalize the histogram
+        hist = cv2.normalize(hist, hist).flatten()
+        return hist
 
+    def train(self, image_folder):
+        image_paths = [os.path.join(image_folder, image_name) for image_name in os.listdir(image_folder)]
+        images = []
+        for path in image_paths:
+            image = cv2.imread(path)
+            images.append(image)
+        # Extract features from each image
+        features = [self.extract_color_features(image) for image in images]
+        # Perform KMeans clustering
+        self.kmeans = KMeans(n_clusters=self.num_clusters)
+        cluster_labels = self.kmeans.fit_predict(features)
+        # Store image paths per cluster
+        for path, label in zip(image_paths, cluster_labels):
+            if label not in self.cluster_assignments:
+                self.cluster_assignments[label] = [path]
+            else:
+                self.cluster_assignments[label].append(path)
 
+    def find_mode(self, numbers):
+        # Extract numbers preceding the underscore
+        extracted_numbers = [int(filename.split('_')[0].split('\\')[-1]) for filename in numbers]
+        # Count occurrences of each number
+        count_dict = Counter(extracted_numbers)
+        # Find the mode
+        mode = count_dict.most_common(1)[0][0]
+        return mode
 
+    def predict(self, image):
+        if self.kmeans is None:
+            raise Exception("Model has not been trained yet.")
+        # Extract features from the input image
+        features = self.extract_color_features(image)
+        # Predict the cluster label for the input image
+        cluster_label = self.kmeans.predict([features])[0]
 
-# threshhold editor window
-cv2.namedWindow("Settings")
-cv2.resizeWindow("Settings", 1080, 300)
+        listnames = self.cluster_assignments.get(cluster_label, [])
+        # Convert the elements to strings
+        string_list = [str(element) for element in listnames]
+        list = self.find_mode(string_list)
+        return cluster_label, list
 
-def empty(a):
-    pass
+# Tester
+if __name__ == "__main__":
+    image_folder = "cashpics"  # Path to the folder containing JPG images
+    num_clusters = 9  # You can adjust the number of clusters as needed
 
-# edit param 3 for best threshholds
-cv2.createTrackbar("K Blur", "Settings", 19, 100, empty)
-cv2.createTrackbar("Sigma Blur", "Settings", 4, 100, empty)
-cv2.createTrackbar("Threshhold 1", "Settings", 86, 500, empty)
-cv2.createTrackbar("Threshhold 2", "Settings", 19, 500, empty)
-cv2.createTrackbar("Bill Size", "Settings", 100, 300, empty)
+    # Create an instance of the ImageClusterer class
+    clusterer = ImageClusterer(num_clusters)
+    # Train the clustering model
+    clusterer.train(image_folder)
+    #Sample use in main
+    # Now, suppose you have a single image as a numpy array
+    #single_image_path = "path_to_your_single_image.jpg"  # Path to a single JPG image
+    #single_image = cv2.imread(single_image_path)
+    # Predict the cluster label for the single image
+    #cluster_label, images_in_cluster = clusterer.predict(single_image)
+    #print(f"The single image belongs to cluster {cluster_label}")
+    #print("Images in the same cluster:")
+    #for img_path in images_in_cluster:
+    #    print(img_path)
 
-def prePocessing(img):
-
-    # get threshhold values
-    kblur = cv2.getTrackbarPos("K Blur", "Settings")
-    kblur = (math.ceil((math.ceil(kblur)/2)+0.5)*2)-1 # round up to nearest odd
-    sigmablur = cv2.getTrackbarPos("Sigma Blur", "Settings")
-    edgethresh1 = cv2.getTrackbarPos("Threshhold 1", "Settings")
-    edgethresh2 = cv2.getTrackbarPos("Threshhold 2", "Settings")
-
-    # blur image
-    imgBlur = cv2.GaussianBlur(img,(kblur,kblur),sigmablur)
-
-    # find edges
-    imgEdge = cv2.Canny(imgBlur,edgethresh1,edgethresh2) # get edges
-    kernel = np.ones((4,4), np.uint8)
-    imgEdge = cv2.dilate(imgEdge, kernel, iterations=1) # dilate edges
-    imgEdge = cv2.morphologyEx(imgEdge, cv2.MORPH_CLOSE, kernel) # close edges
-    return imgBlur, imgEdge
-
-# image for displaying amount of money
-moneyCount = np.zeros((400,600, 3), dtype = np.uint8)
-moneyCount.fill(255)  # Fill with white color
-# Choose a font
-font = cv2.FONT_HERSHEY_SIMPLEX
-# Determine the position to display the text
-org = (20, 60)
-# Choose font scale and color
-font_scale = 1
-color = (0, 0, 0)  # Black color
-
-# using model
-image_folder = "cashpics"  # Path to the folder containing JPG images
-num_clusters = 9  # You can adjust the number of clusters as needed
-# Create an instance of the ImageClusterer class
-clusterer = ImageClusterer(num_clusters)
-# Train the clustering model
-clusterer.train(image_folder)
-previous_count = 0
-
-#using camera loop
-while True:
-    # reset money
-    moneyAmt = 0
-
-    #get camera image
-    success, img = cap.read()
-    imgBlur, imgEdge = prePocessing(img)
-
-    minArea = cv2.getTrackbarPos("Bill Size", "Settings")
-    # get contours (img of each object)
-    imgContours, conFound = cvzone.findContours(img, imgEdge, minArea=minArea)
-
-    if conFound:
-        #TEST SPEECH VALUES HERE
-        #moneyAmt = 1240 
-        for contour in conFound:
-            # get number of sides (makes sure its a 4 sided bill)
-            peri = cv2.arcLength(contour['cnt'], True)
-            approx = cv2.approxPolyDP(contour['cnt'], 0.02 * peri, True)
-
-            #print(len(approx)) # see number of sides of money
-            if( len(approx) <= 8 ): # can be changed to 4 if no folds talaga
-
-                #print(contour['area']) # see area of money
-                if( (contour['area']>35000) ): # min area of money depends on distance
-
-                    # get box of image of individual money
-                    x,y,w,h = contour['bbox']
-                    imgCrop = img[y:y+h,x:x+w]
-
-                    # mask to different colors for identifying amount (identify by their hard coded color)
-                    #imgColor, mask = myColorFinder.update(imgCrop, cOneHundred)
-                    #HundredPixelCount = cv2.countNonZero(mask) #9000 min
-
-                    #imgColor, mask = myColorFinder.update(img, cFifthy)
-                    #FifthyPixelCount = cv2.countNonZero(mask) #800 min
-
-                    #imgColor, mask = myColorFinder.update(imgCrop, cOneThousand)
-                    #ThousandPixelCount = cv2.countNonZero(mask) #18000 min
-
-                    #  if(ThousandPixelCount>18000):
-                    #      moneyAmt+=1000
-                    #  elif(HundredPixelCount >= 9000):
-                    #      moneyAmt += 100
-                    #  elif(FifthyPixelCount >=800):
-                    #      moneyAmt += 50
-
-                    # identify using KMEANS
-                    cluster, cashValue = clusterer.predict(imgCrop)
-                    #prints predicted cluster
-                    print(cluster)
-                    moneyAmt += int(cashValue)
+    # Print the cluster labels for each image
+    for cluster_label, image_paths_in_cluster in clusterer.cluster_assignments.items():
+        print(f"Cluster {cluster_label}:")
+        for image_path in image_paths_in_cluster:
+            print(f"  Image {image_path} belongs to this cluster")
 
 
-        # Draw the text amount image
-        moneyCount.fill(255)
 
-        speech = pyttsx3.init()
-        voices = speech.getProperty('voices')
-        speech.setProperty('voice', voices[0].id)
-        string_mon = str(moneyAmt)
 
-        if string_mon != '0' or previous_count != moneyAmt:
-            speech.say(string_mon + 'Pesos')
-            speech.runAndWait()
-            previous_count = moneyAmt
 
-        cv2.putText(moneyCount, f'Php{moneyAmt}', org, font, font_scale, color, thickness=2, lineType=cv2.LINE_AA)
 
-        # show images
-        #imgStacked = cvzone.stackImages([img, imgBlur, imgEdge, imgContours, moneyCount], 3, 1) # good for showing the process
-        imgStacked = cvzone.stackImages([img, moneyCount], 2, 1.4) # for showing camera and count only
-        cv2.imshow("BlindBills Prototype", imgStacked)
-        #print(moneyAmt)
-        #cv2.imshow("imgColor", imgColor) # use for manual identifying color set "myColorFinder = ColorFinder(False)" to true
-        cv2.waitKey(1)
 
-        #delay scanning
-        #time.sleep(1)
+
+
+""" 
+Train using Color Histogram   
+    def extract_color_features(self, image):
+        # Convert the image from BGR to RGB color space
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        # Resize the image to a same sizes (optional)
+        # image = cv2.resize(image, (300, 800))
+        # Flatten the image into a feature vector
+        pixels = image.reshape(-1, 3)
+        # Compute the histogram for each channel
+        hist = cv2.calcHist([image], [0, 1, 2], None, (8, 8, 8), [0, 256, 0, 256, 0, 256])
+        # Normalize the histogram
+        hist = cv2.normalize(hist, hist).flatten()
+        return hist
+
+    def train(self, image_folder):
+        image_paths = [os.path.join(image_folder, image_name) for image_name in os.listdir(image_folder)]
+        images = []
+        for path in image_paths:
+            image = cv2.imread(path)
+            images.append(image)
+        # Extract features from each image
+        features = [self.extract_color_features(image) for image in images]
+        # Perform KMeans clustering
+        self.kmeans = KMeans(n_clusters=self.num_clusters)
+        cluster_labels = self.kmeans.fit_predict(features)
+        # Store image paths per cluster
+        for path, label in zip(image_paths, cluster_labels):
+            if label not in self.cluster_assignments:
+                self.cluster_assignments[label] = [path]
+            else:
+                self.cluster_assignments[label].append(path)
+"""
+
+"""
+    Train using Color Moments
+    def extract_color_moments(self, image):
+        # Convert the image from BGR to RGB color space
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        # Calculate mean, standard deviation, skewness, and kurtosis for each color channel
+        mean = np.mean(image, axis=(0, 1))
+        std_dev = np.std(image, axis=(0, 1))
+        skewness = skew(image.reshape(-1, 3), axis=0)
+        kurt = kurtosis(image.reshape(-1, 3), axis=0)
+        # Concatenate the moments into a feature vector
+        moments = np.concatenate((mean, std_dev, skewness, kurt))
+        return moments
+
+    def train(self, image_folder):
+        image_paths = [os.path.join(image_folder, image_name) for image_name in os.listdir(image_folder)]
+        images = []
+        for path in image_paths:
+            image = cv2.imread(path)
+            images.append(image)
+        # Extract color moments features from each image
+        features = [self.extract_color_moments(image) for image in images]
+        # Perform KMeans clustering
+        self.kmeans = KMeans(n_clusters=self.num_clusters)
+        cluster_labels = self.kmeans.fit_predict(features)
+        # Store image paths per cluster
+        for path, label in zip(image_paths, cluster_labels):
+            if label not in self.cluster_assignments:
+                self.cluster_assignments[label] = [path]
+            else:
+                self.cluster_assignments[label].append(path)      
+"""
