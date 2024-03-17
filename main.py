@@ -113,7 +113,7 @@ while True:
             if( len(approx) <= 8 ): # can be changed to 4 if no folds talaga
 
                 #print(contour['area']) # see area of money
-                if( (contour['area']>35000) ): # min area of money depends on distance
+                if( (contour['area']>3500) ): # min area of money depends on distance
 
                     # get box of image of individual money
                     x,y,w,h = contour['bbox']
