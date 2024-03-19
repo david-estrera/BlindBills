@@ -1,22 +1,11 @@
 import cv2
-import cvzone
-import math
-import numpy as np
-from PIL import Image
-import time
-from cvzone.ColorModule import ColorFinder
-from image_cluster import ImageClusterer
 import pyttsx3
-
-# set up camera
-cap = cv2.VideoCapture(0)
 import cvzone
 import math
 import numpy as np
-from PIL import Image
-import time
 from cvzone.ColorModule import ColorFinder
 from image_cluster import ImageClusterer
+
 # set up camera
 cap = cv2.VideoCapture(0)
 cap.set(3,640)
@@ -81,7 +70,7 @@ color = (0, 0, 0)  # Black color
 
 # using model
 image_folder = "cashpics"  # Path to the folder containing JPG images
-num_clusters = 3  # You can adjust the number of clusters as needed
+num_clusters = 10  # You can adjust the number of clusters as needed
 # Create an instance of the ImageClusterer class
 clusterer = ImageClusterer(num_clusters)
 # Train the clustering model
