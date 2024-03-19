@@ -5,17 +5,25 @@ import math
 import numpy as np  # Arrays, Mathematical operations on images
 from cvzone.ColorModule import ColorFinder  # Color detection
 from image_cluster import ImageClusterer    # Cluster images based on color
+import time
 
-# Camera
-cap = cv2.VideoCapture(1)
-cap.set(3, 640)
-cap.set(4, 480)
+# Cluster model to analyze images
+image_folder = "cashpics" 
+num_clusters = 6
+clusterer = ImageClusterer(num_clusters)  # Create instance
+clusterer.train(image_folder)  # Train the clustering model
+previous_count = 0
 
 # Color range (hue, saturation, and value)
-myColorFinder = ColorFinder(False)
-cOneHundred = {'hmin': 110, 'smin': 0, 'vmin': 82, 'hmax': 179, 'smax': 131, 'vmax': 198}
-cFifthy = {'hmin': 0, 'smin': 50, 'vmin': 112, 'hmax': 28, 'smax': 255, 'vmax': 255}
-cOneThousand = {'hmin': 59, 'smin': 0, 'vmin': 0, 'hmax': 113, 'smax': 255, 'vmax': 255}
+# myColorFinder = ColorFinder(False)
+# cOneHundred = {'hmin': 110, 'smin': 0, 'vmin': 82, 'hmax': 179, 'smax': 131, 'vmax': 198}
+# cFifthy = {'hmin': 0, 'smin': 50, 'vmin': 112, 'hmax': 28, 'smax': 255, 'vmax': 255}
+# cOneThousand = {'hmin': 59, 'smin': 0, 'vmin': 0, 'hmax': 113, 'smax': 255, 'vmax': 255}
+
+# Camera
+cap = cv2.VideoCapture(0)
+cap.set(3, 640)
+cap.set(4, 480)
 
 # Settings window
 cv2.namedWindow("Settings")
@@ -62,74 +70,71 @@ org = (20, 60)     # Determine the position to display the text
 font_scale = 1     # Choose font scale and color
 color = (0, 0, 0)  # Black color
 
-# using model
-image_folder = "cashpics"  # Path to the folder containing JPG images
-num_clusters = 10  # You can adjust the number of clusters as needed
-# Create an instance of the ImageClusterer class
-clusterer = ImageClusterer(num_clusters)
-# Train the clustering model
-clusterer.train(image_folder)
-previous_count = 0
-
-
-#using camera loop
+# Camera loop
 while True:
-    # reset money
+    # Reset money detected
     moneyAmt = 0
 
-    #get camera image
+    # Capture and preprocess image
     success, img = cap.read()
     imgBlur, imgEdge = preProcessing(img)
 
+    # Find contours from edge-detected image
     minArea = cv2.getTrackbarPos("Bill Size", "Settings")
-    # get contours (img of each object)
     imgContours, conFound = cvzone.findContours(img, imgEdge, minArea=minArea)
 
     if conFound:
         moneyAmt = 0
         for contour in conFound:
-            # get number of sides (makes sure its a 4 sided bill)
+            # Get number of sides (to check if it's a 4 sided bill)
             peri = cv2.arcLength(contour['cnt'], True)
             approx = cv2.approxPolyDP(contour['cnt'], 0.02 * peri, True)
 
-            #print(len(approx)) # see number of sides of money
-            if( len(approx) <= 8 ): # can be changed to 4 if no folds talaga
+            if( len(approx) <= 8 ): # Can be changed to 4 if there are no folds
 
-                #print(contour['area']) # see area of money
-                if( (contour['area']>3500) ): # min area of money depends on distance
+                if( (contour['area']>3500) ): # Min area of money depends on distance
 
-                    # get box of image of individual money
+                    # Get box of image of individual money
                     x,y,w,h = contour['bbox']
                     imgCrop = img[y:y+h,x:x+w]
 
-                    # identify using KMEANS
+                    # Predict cluster
                     cluster, cashValue = clusterer.predict(imgCrop)
-                    #prints predicted cluster
-                    print(cluster)
                     moneyAmt += int(cashValue)
-
 
         # Draw the text amount image
         moneyCount.fill(255)
         
-        speech = pyttsx3.init()
-        voices = speech.getProperty('voices')
-        speech.setProperty('voice', voices[0].id)
+        # Initialize text-to-speech
+        #speech = pyttsx3.init()
+        #voices = speech.getProperty('voices')
+        #speech.setProperty('voice', voices[0].id)
         string_mon = str(moneyAmt)
 
+        # Output text-to-speech
         if string_mon != '0' and previous_count != moneyAmt:
-            speech.say(string_mon + 'Pesos')
-            speech.runAndWait()
+            print(f'Total Cash: {moneyAmt}')
+            #speech.say(string_mon + 'Pesos')
+            #speech.runAndWait()
             previous_count = moneyAmt
 
+        # Display money counted
         cv2.putText(moneyCount, f'Php{moneyAmt}', org, font, font_scale, color, thickness=2, lineType=cv2.LINE_AA)
-        # show images
-        imgStacked = cvzone.stackImages([img, imgBlur, imgEdge, imgContours, moneyCount], 3, 1) # good for showing the process
+
+        # Define images to be displayed
         #imgStacked = cvzone.stackImages([img, moneyCount], 2, 1.4) # for showing camera and count only
-        cv2.imshow("BlindBills Prototype", imgStacked)
-        #print(moneyAmt)
+        imgStacked = cvzone.stackImages([img, imgBlur, imgEdge, imgContours, moneyCount], 3, 1) # good for showing the process 
+        
+        # Resize images
+        width = 720
+        aspect_ratio = imgStacked.shape[1] / imgStacked.shape[0]
+        height = int(width / aspect_ratio)
+        resized_imgStacked = cv2.resize(imgStacked, (width, height))
+
+        # Display images
         #cv2.imshow("imgColor", imgColor) # use for manual identifying color set "myColorFinder = ColorFinder(False)" to true
+        cv2.imshow("BlindBills Prototype", resized_imgStacked)
         cv2.waitKey(1)
 
-        #delay scanning
-        #time.sleep(1)
+        # Delay scanning
+        # time.sleep(5)
