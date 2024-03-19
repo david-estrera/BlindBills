@@ -8,11 +8,12 @@ from image_cluster import ImageClusterer    # Cluster images based on color
 import time
 
 # Cluster model to analyze images
+print('Please wait patiently while the clustering model is being trained...')
 image_folder = "cashpics" 
 num_clusters = 6
 clusterer = ImageClusterer(num_clusters)  # Create instance
 clusterer.train(image_folder)  # Train the clustering model
-previous_count = 0
+print('Thank you for waiting! The model has successfully been trained!')
 
 # Color range (hue, saturation, and value)
 # myColorFinder = ColorFinder(False)
@@ -69,6 +70,8 @@ font = cv2.FONT_HERSHEY_SIMPLEX   # Choose a font
 org = (20, 60)     # Determine the position to display the text
 font_scale = 1     # Choose font scale and color
 color = (0, 0, 0)  # Black color
+
+previous_count = 0
 
 # Camera loop
 while True:
