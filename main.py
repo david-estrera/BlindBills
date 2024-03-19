@@ -10,7 +10,7 @@ import time
 # Cluster model to analyze images
 print('Please wait patiently while the clustering model is being trained...')
 image_folder = "cashpics" 
-num_clusters = 6
+num_clusters = 8
 clusterer = ImageClusterer(num_clusters)  # Create instance
 clusterer.train(image_folder)  # Train the clustering model
 print('Thank you for waiting! The model has successfully been trained!')
@@ -22,7 +22,7 @@ print('Thank you for waiting! The model has successfully been trained!')
 # cOneThousand = {'hmin': 59, 'smin': 0, 'vmin': 0, 'hmax': 113, 'smax': 255, 'vmax': 255}
 
 # Camera
-cap = cv2.VideoCapture(0)
+cap = cv2.VideoCapture(1)
 cap.set(3, 640)
 cap.set(4, 480)
 
@@ -115,15 +115,16 @@ while True:
         string_mon = str(moneyAmt)
 
         # Output text-to-speech
-        if string_mon != '0' and previous_count != moneyAmt:
+        # if string_mon != '0' and previous_count != moneyAmt:
+        if previous_count != moneyAmt:
             print(f'Total Cash: {moneyAmt}')
             #speech.say(string_mon + 'Pesos')
             #speech.runAndWait()
+            # Display money counted
+            cv2.putText(moneyCount, f'Php{moneyAmt}', org, font, font_scale, color, thickness=2, lineType=cv2.LINE_AA)
             previous_count = moneyAmt
 
-        # Display money counted
-        cv2.putText(moneyCount, f'Php{moneyAmt}', org, font, font_scale, color, thickness=2, lineType=cv2.LINE_AA)
-
+        cv2.putText(moneyCount, f'Php{previous_count}', org, font, font_scale, color, thickness=2, lineType=cv2.LINE_AA)
         # Define images to be displayed
         #imgStacked = cvzone.stackImages([img, moneyCount], 2, 1.4) # for showing camera and count only
         imgStacked = cvzone.stackImages([img, imgBlur, imgEdge, imgContours, moneyCount], 3, 1) # good for showing the process 
