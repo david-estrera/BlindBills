@@ -56,7 +56,7 @@ class ImageClusterer:
 
 if __name__ == "__main__":
     image_folder = "cashpics"
-    num_clusters = 10
+    num_clusters = 20
     clusterer = ImageClusterer(num_clusters)
     clusterer.train(image_folder)
 
